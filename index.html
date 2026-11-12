@@ -3,15 +3,23 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>QR Scanner - Brongsong</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff8ef">
+
+  <title>QR Scanner - Ayam Asap Brongsong</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      padding: 24px;
+      padding: 20px;
       min-height: 100vh;
+      min-height: 100dvh;
       font-family: Arial, sans-serif;
       background: #fff8ef;
       color: #30251d;
@@ -19,6 +27,7 @@
       justify-content: center;
       align-items: center;
     }
+
     .card {
       background: white;
       padding: 25px;
@@ -28,14 +37,42 @@
       box-shadow: 0 8px 30px #00000012;
       text-align: center;
     }
-    h2 { margin-top: 0; }
-    p { color: #766b61; line-height: 1.5; }
+
+    .logo {
+      width: 65px;
+      height: 65px;
+      margin: 0 auto 14px;
+      border-radius: 50%;
+      background: #df6429;
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 30px;
+      font-weight: bold;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    p {
+      color: #766b61;
+      line-height: 1.5;
+    }
+
     #reader {
       width: 100%;
       margin: 20px auto;
       overflow: hidden;
       border-radius: 14px;
+      background: #fff8ef;
     }
+
+    #reader video {
+      object-fit: cover;
+    }
+
     button {
       width: 100%;
       border: 0;
@@ -43,110 +80,416 @@
       border-radius: 12px;
       background: #df6429;
       color: white;
-      font-size: 17px;
+      font-size: 16px;
       font-weight: bold;
       cursor: pointer;
       margin-top: 10px;
     }
-    button.secondary { background: #30251d; }
+
+    button:disabled {
+      opacity: .5;
+      cursor: wait;
+    }
+
+    button.secondary {
+      background: #30251d;
+    }
+
+    button.light {
+      background: white;
+      color: #30251d;
+      border: 1px solid #e8dccb;
+    }
+
     #status {
-      padding: 12px;
+      padding: 13px;
       background: #fff2e8;
       border-radius: 10px;
       font-size: 14px;
       overflow-wrap: anywhere;
+      margin-top: 15px;
     }
-    #result { display: none; }
+
+    #status.success {
+      background: #e9f6ed;
+      color: #267343;
+    }
+
+    #status.error {
+      background: #fce9e6;
+      color: #b83225;
+    }
+
+    #result {
+      display: none;
+      margin-top: 15px;
+    }
+
+    #decoded {
+      padding: 12px;
+      background: #f8f4ef;
+      border-radius: 10px;
+      overflow-wrap: anywhere;
+      color: #30251d;
+      font-weight: bold;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #e9f6ed;
+      color: #267343;
+      padding: 7px 12px;
+      border-radius: 30px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .footer {
+      margin-top: 18px;
+      font-size: 11px;
+      color: #9b8d80;
+    }
+
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
+
 <body>
+
   <main class="card">
+
+    <div class="logo">★</div>
+
     <h2>AYAM ASAP BRONGSONG</h2>
     <p>Scanner QR Loyalty Card</p>
 
     <div id="reader"></div>
-    <div id="status">Tekan tombol di bawah untuk mengaktifkan kamera.</div>
 
-    <div id="result">
-      <p><b>QR berhasil terbaca!</b></p>
-      <p id="decoded"></p>
-      <button onclick="sendResult()">Kirim ke Dashboard Admin</button>
-      <button class="secondary" onclick="copyResult()">Salin kode QR</button>
-      <button class="secondary" onclick="location.reload()">Scan Lagi</button>
+    <div id="status">
+      Tekan tombol MULAI KAMERA untuk memindai QR pelanggan.
     </div>
 
-    <button id="start" onclick="startScanner()">MULAI KAMERA</button>
+    <div id="result">
+
+      <div class="badge">✓ QR BERHASIL DIBACA</div>
+
+      <p>Nomor / ID QR pelanggan:</p>
+
+      <div id="decoded"></div>
+
+      <button id="sendButton" onclick="sendResult()">
+        KIRIM KE DASHBOARD ADMIN
+      </button>
+
+      <button class="secondary" onclick="copyResult()">
+        SALIN KODE QR
+      </button>
+
+      <button class="light" onclick="scanAgain()">
+        SCAN LAGI
+      </button>
+
+    </div>
+
+    <button id="start" onclick="startScanner()">
+      MULAI KAMERA
+    </button>
+
+    <button id="stop" class="secondary hidden" onclick="stopScanner()">
+      MATIKAN KAMERA
+    </button>
+
+    <div class="footer">
+      Loyalty Card Ayam Asap Brongsong Rumah Putih
+    </div>
+
   </main>
 
   <script>
-    let scanner;
-    let qrValue = "";
+    'use strict';
+
+    let scanner = null;
+    let qrValue = '';
     let finished = false;
+    let sending = false;
+    let sent = false;
+
+    const $ = id => document.getElementById(id);
+
+    function setStatus(message, type) {
+      const el = $('status');
+
+      el.textContent = message;
+      el.className = type || '';
+    }
+
+    /* CEK DASHBOARD ADMIN */
+
+    function dashboardAvailable() {
+      try {
+        return !!(
+          window.opener &&
+          !window.opener.closed
+        );
+      } catch (e) {
+        return false;
+      }
+    }
+
+    /* MEMULAI KAMERA */
 
     async function startScanner() {
-      const status = document.getElementById("status");
-      const start = document.getElementById("start");
+
+      if (scanner) {
+        await stopScanner();
+      }
+
+      const start = $('start');
+      const stop = $('stop');
+
+      start.disabled = true;
+
+      setStatus('Meminta izin akses kamera...');
 
       try {
-        start.disabled = true;
-        status.textContent = "Meminta izin kamera...";
 
-        scanner = new Html5Qrcode("reader");
+        if (!window.isSecureContext) {
+          throw new Error(
+            'Halaman harus dibuka melalui HTTPS.'
+          );
+        }
+
+        if (
+          !navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia
+        ) {
+          throw new Error(
+            'Browser tidak mendukung akses kamera.'
+          );
+        }
+
+        scanner = new Html5Qrcode('reader');
 
         await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 230, height: 230 } },
-          async (text) => {
+          { facingMode: 'environment' },
+
+          {
+            fps: 10,
+            qrbox: {
+              width: 230,
+              height: 230
+            },
+            aspectRatio: 1
+          },
+
+          async function(text) {
+
             if (finished) return;
+
             finished = true;
-            qrValue = text;
+            qrValue = String(text).trim();
 
-            await scanner.stop();
+            setStatus('QR ditemukan. Mengirim ke dashboard...');
 
-            document.getElementById("decoded").textContent = text;
-            document.getElementById("result").style.display = "block";
-            document.getElementById("reader").style.display = "none";
-            document.getElementById("status").textContent = "QR berhasil dibaca.";
-            start.style.display = "none";
+            await stopScanner();
+
+            $('decoded').textContent = qrValue;
+
+            $('reader').classList.add('hidden');
+            $('result').style.display = 'block';
+
+            $('start').classList.add('hidden');
+            $('stop').classList.add('hidden');
+
+            // Otomatis kirim hasil scan ke Apps Script.
+            await sendResult();
+
+          },
+
+          function() {
+            // Abaikan error saat belum menemukan QR.
           }
         );
 
-        status.textContent = "Kamera aktif. Arahkan ke QR pelanggan.";
+        start.classList.add('hidden');
+        stop.classList.remove('hidden');
+
+        setStatus(
+          'Kamera aktif. Arahkan kamera ke QR pelanggan.'
+        );
+
       } catch (err) {
+
+        scanner = null;
+
         start.disabled = false;
-        status.textContent =
-          "Kamera gagal dibuka: " + (err.message || err) +
-          ". Pastikan menggunakan HTTPS dan izinkan kamera.";
+        start.classList.remove('hidden');
+        stop.classList.add('hidden');
+
+        let message = err.message || String(err);
+
+        if (
+          err.name === 'NotAllowedError' ||
+          /permission|denied|notallowed/i.test(message)
+        ) {
+          message =
+            'Akses kamera ditolak. Periksa izin kamera browser.';
+        }
+
+        setStatus(
+          'Kamera gagal dibuka: ' + message,
+          'error'
+        );
       }
     }
 
-    function sendResult() {
-      if (!qrValue) return;
+    /* MEMATIKAN KAMERA */
 
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({
-          type: "BRONGSONG_QR_RESULT",
-          value: qrValue
-        }, "*");
+    async function stopScanner() {
 
-        document.getElementById("status").textContent =
-          "Kode QR sudah dikirim ke jendela dashboard. Periksa dashboard admin.";
-      } else {
-        copyResult();
-        document.getElementById("status").textContent =
-          "Dashboard tidak ditemukan. Kode QR sudah disalin jika browser mengizinkan.";
+      if (!scanner) return;
+
+      const oldScanner = scanner;
+      scanner = null;
+
+      try {
+        if (oldScanner.isScanning) {
+          await oldScanner.stop();
+        }
+      } catch (e) {}
+
+      try {
+        oldScanner.clear();
+      } catch (e) {}
+    }
+
+    /* KIRIM QR KE DASHBOARD APPS SCRIPT */
+
+    async function sendResult() {
+
+      if (!qrValue || sending) return;
+
+      if (!dashboardAvailable()) {
+
+        setStatus(
+          'Dashboard admin tidak terhubung. Buka scanner melalui tombol dari dashboard admin.',
+          'error'
+        );
+
+        return;
+      }
+
+      sending = true;
+
+      const btn = $('sendButton');
+
+      btn.disabled = true;
+      btn.textContent = 'MENGIRIM...';
+
+      try {
+
+        window.opener.postMessage(
+          {
+            type: 'BRONGSONG_QR_RESULT',
+            value: qrValue
+          },
+          'https://script.google.com'
+        );
+
+        sent = true;
+
+        btn.textContent = 'TERKIRIM KE DASHBOARD ✓';
+
+        setStatus(
+          'QR telah dikirim ke dashboard admin. Silakan periksa hasil stamp di tab dashboard.',
+          'success'
+        );
+
+      } catch (e) {
+
+        setStatus(
+          'Gagal mengirim QR: ' + e.message,
+          'error'
+        );
+
+        btn.textContent = 'COBA KIRIM LAGI';
+
+      } finally {
+
+        sending = false;
+        btn.disabled = false;
       }
     }
+
+    /* SALIN QR */
 
     async function copyResult() {
+
+      if (!qrValue) return;
+
       try {
+
         await navigator.clipboard.writeText(qrValue);
-        document.getElementById("status").textContent = "Kode QR berhasil disalin.";
+
+        setStatus(
+          'Kode QR berhasil disalin.',
+          'success'
+        );
+
       } catch (e) {
-        document.getElementById("status").textContent =
-          "Silakan salin kode QR secara manual.";
+
+        setStatus(
+          'Tidak dapat menyalin otomatis. Salin kode secara manual.',
+          'error'
+        );
       }
     }
+
+    /* SCAN ULANG */
+
+    async function scanAgain() {
+
+      await stopScanner();
+
+      qrValue = '';
+      finished = false;
+      sending = false;
+      sent = false;
+
+      $('reader').classList.remove('hidden');
+      $('result').style.display = 'none';
+
+      $('start').classList.remove('hidden');
+      $('start').disabled = false;
+
+      $('stop').classList.add('hidden');
+
+      $('sendButton').textContent =
+        'KIRIM KE DASHBOARD ADMIN';
+
+      setStatus(
+        'Siap melakukan pemindaian QR berikutnya.'
+      );
+
+      await startScanner();
+    }
+
+    /* BERSIHKAN KAMERA SAAT HALAMAN DITUTUP */
+
+    window.addEventListener('pagehide', function() {
+
+      if (scanner) {
+        try {
+          scanner.stop();
+        } catch (e) {}
+      }
+
+    });
+
   </script>
+
 </body>
 </html>
