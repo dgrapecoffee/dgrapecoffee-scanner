@@ -1,0 +1,152 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Scanner - Brongsong</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #fff8ef;
+      color: #30251d;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .card {
+      background: white;
+      padding: 25px;
+      border-radius: 22px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 8px 30px #00000012;
+      text-align: center;
+    }
+    h2 { margin-top: 0; }
+    p { color: #766b61; line-height: 1.5; }
+    #reader {
+      width: 100%;
+      margin: 20px auto;
+      overflow: hidden;
+      border-radius: 14px;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      padding: 16px;
+      border-radius: 12px;
+      background: #df6429;
+      color: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button.secondary { background: #30251d; }
+    #status {
+      padding: 12px;
+      background: #fff2e8;
+      border-radius: 10px;
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+    #result { display: none; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h2>AYAM ASAP BRONGSONG</h2>
+    <p>Scanner QR Loyalty Card</p>
+
+    <div id="reader"></div>
+    <div id="status">Tekan tombol di bawah untuk mengaktifkan kamera.</div>
+
+    <div id="result">
+      <p><b>QR berhasil terbaca!</b></p>
+      <p id="decoded"></p>
+      <button onclick="sendResult()">Kirim ke Dashboard Admin</button>
+      <button class="secondary" onclick="copyResult()">Salin kode QR</button>
+      <button class="secondary" onclick="location.reload()">Scan Lagi</button>
+    </div>
+
+    <button id="start" onclick="startScanner()">MULAI KAMERA</button>
+  </main>
+
+  <script>
+    let scanner;
+    let qrValue = "";
+    let finished = false;
+
+    async function startScanner() {
+      const status = document.getElementById("status");
+      const start = document.getElementById("start");
+
+      try {
+        start.disabled = true;
+        status.textContent = "Meminta izin kamera...";
+
+        scanner = new Html5Qrcode("reader");
+
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 230, height: 230 } },
+          async (text) => {
+            if (finished) return;
+            finished = true;
+            qrValue = text;
+
+            await scanner.stop();
+
+            document.getElementById("decoded").textContent = text;
+            document.getElementById("result").style.display = "block";
+            document.getElementById("reader").style.display = "none";
+            document.getElementById("status").textContent = "QR berhasil dibaca.";
+            start.style.display = "none";
+          }
+        );
+
+        status.textContent = "Kamera aktif. Arahkan ke QR pelanggan.";
+      } catch (err) {
+        start.disabled = false;
+        status.textContent =
+          "Kamera gagal dibuka: " + (err.message || err) +
+          ". Pastikan menggunakan HTTPS dan izinkan kamera.";
+      }
+    }
+
+    function sendResult() {
+      if (!qrValue) return;
+
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: "BRONGSONG_QR_RESULT",
+          value: qrValue
+        }, "*");
+
+        document.getElementById("status").textContent =
+          "Kode QR sudah dikirim ke jendela dashboard. Periksa dashboard admin.";
+      } else {
+        copyResult();
+        document.getElementById("status").textContent =
+          "Dashboard tidak ditemukan. Kode QR sudah disalin jika browser mengizinkan.";
+      }
+    }
+
+    async function copyResult() {
+      try {
+        await navigator.clipboard.writeText(qrValue);
+        document.getElementById("status").textContent = "Kode QR berhasil disalin.";
+      } catch (e) {
+        document.getElementById("status").textContent =
+          "Silakan salin kode QR secara manual.";
+      }
+    }
+  </script>
+</body>
+</html>
